@@ -76,10 +76,10 @@ export async function renderPage(
     throw new Error('无法获取画布绘图上下文');
   }
 
-  const renderTask = page.render({
-    canvas,
+const renderTask = page.render({
+    canvasContext: context,
     viewport
-  });
+});
 
   await renderTask.promise;
 

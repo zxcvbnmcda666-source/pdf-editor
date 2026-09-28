@@ -1,22 +1,55 @@
 import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist';
-import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
-import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
-// Configure PDF.js worker
-GlobalWorkerOptions.workerSrc = workerUrl;
+let pdfjsPromise: Promise<typeof import('pdfjs-dist')> | null = null;
+let workerUrlPromise: Promise<string> | null = null;
+
+async function getPdfjs() {
+  if (typeof window === 'undefined') {
+    throw new Error('PDF.js 只能在浏览器中运行');
+  }
+
+  if (!pdfjsPromise) {
+    pdfjsPromise = import('pdfjs-dist');
+  }
+
+  return pdfjsPromise;
+}
+
+async function getWorkerUrl(): Promise<string> {
+  if (typeof window === 'undefined') {
+    throw new Error('PDF.js Worker 只能在浏览器中运行');
+  }
+
+  if (!workerUrlPromise) {
+    workerUrlPromise = import('pdfjs-dist/build/pdf.worker.mjs?url').then(
+      (module) => module.default
+    );
+  }
+
+  return workerUrlPromise;
+}
 
 const PDF_LOAD_OPTIONS = {
-  cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/cmaps/',
-  cMapPacked: true,
-  standardFontDataUrl:
-    'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/standard_fonts/',
-  wasmUrl:
-    'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/wasm/'
+  cMapUrl: '/pdf-editor/cmaps/',
+  cMapPacked: true
 };
 
-export async function loadPdf(source: File | ArrayBuffer): Promise<PDFDocumentProxy> {
-  const data = source instanceof File ? await source.arrayBuffer() : source;
-  const doc = await getDocument({ data, ...PDF_LOAD_OPTIONS }).promise;
+export async function loadPdf(
+  source: File | ArrayBuffer
+): Promise<PDFDocumentProxy> {
+  const pdfjs = await getPdfjs();
+  const workerUrl = await getWorkerUrl();
+
+  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+
+  const data =
+    source instanceof File ? await source.arrayBuffer() : source;
+
+  const doc = await pdfjs.getDocument({
+    data,
+    ...PDF_LOAD_OPTIONS
+  }).promise;
+
   return doc;
 }
 
@@ -25,17 +58,31 @@ export async function renderPage(
   canvas: HTMLCanvasElement,
   scale: number
 ): Promise<RenderTask> {
-  const viewport = page.getViewport({ scale: scale * window.devicePixelRatio });
+  const devicePixelRatio = window.devicePixelRatio || 1;
+
+  const viewport = page.getViewport({
+    scale: scale * devicePixelRatio
+  });
+
   canvas.width = viewport.width;
   canvas.height = viewport.height;
-  canvas.style.width = `${viewport.width / window.devicePixelRatio}px`;
-  canvas.style.height = `${viewport.height / window.devicePixelRatio}px`;
+
+  canvas.style.width = `${viewport.width / devicePixelRatio}px`;
+  canvas.style.height = `${viewport.height / devicePixelRatio}px`;
 
   const context = canvas.getContext('2d');
-  if (!context) throw new Error('无法获取画布绘图上下文');
 
-  const renderTask = page.render({ canvas, viewport });
+  if (!context) {
+    throw new Error('无法获取画布绘图上下文');
+  }
+
+  const renderTask = page.render({
+    canvas,
+    viewport
+  });
+
   await renderTask.promise;
+
   return renderTask;
 }
 
@@ -56,7 +103,10 @@ export interface ParsedRanges {
   error: string;
 }
 
-export function parseRanges(input: string, totalPages: number): ParsedRanges {
+export function parseRanges(
+  input: string,
+  totalPages: number
+): ParsedRanges {
   const trimmed = input.trim();
 
   if (!trimmed) {
@@ -67,14 +117,19 @@ export function parseRanges(input: string, totalPages: number): ParsedRanges {
     };
   }
 
-  const parts = trimmed.split(',').map((s) => s.trim());
+  const parts = trimmed
+    .split(',')
+    .map((s) => s.trim());
+
   const ranges: number[][] = [];
   const seenPages = new Set<number>();
 
   for (const part of parts) {
     if (!part) continue;
 
-    const dashMatch = part.match(/^(\d+)\s*-\s*(\d+)$/);
+    const dashMatch = part.match(
+      /^(\d+)\s*-\s*(\d+)$/
+    );
 
     if (dashMatch) {
       const start = parseInt(dashMatch[1], 10);
@@ -165,4 +220,7 @@ export function parseRanges(input: string, totalPages: number): ParsedRanges {
   };
 }
 
-export type { PDFDocumentProxy, PDFPageProxy };
+export type {
+  PDFDocumentProxy,
+  PDFPageProxy
+};

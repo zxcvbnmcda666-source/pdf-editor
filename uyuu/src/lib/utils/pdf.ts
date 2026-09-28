@@ -1,11 +1,9 @@
 import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist';
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
+import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
 // Configure PDF.js worker
-GlobalWorkerOptions.workerSrc = new URL(
-	'pdfjs-dist/build/pdf.worker.mjs',
-	import.meta.url
-).toString();
+GlobalWorkerOptions.workerSrc = workerUrl;
 
 const PDF_LOAD_OPTIONS = {
 	cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.624/cmaps/',

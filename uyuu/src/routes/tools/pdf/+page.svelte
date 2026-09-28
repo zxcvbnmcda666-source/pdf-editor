@@ -1,4 +1,5 @@
 <script lang="ts">
+    export const ssr = false;
 	import { resolve } from '$app/paths';
 	import * as Card from '$lib/components/ui/card';
 	import {

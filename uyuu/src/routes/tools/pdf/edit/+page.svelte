@@ -84,10 +84,16 @@
 			totalPages = pdf.numPages;
 			await tick();
 			renderCurrentPage();
-		} catch {
-			errorMsg = 'PDF 加载失败。';
-			file = null;
-		}
+} catch (error) {
+    console.error('PDF 加载失败:', error);
+
+    errorMsg =
+        error instanceof Error
+            ? `PDF 加载失败：${error.message}`
+            : `PDF 加载失败：${String(error)}`;
+
+    file = null;
+}
 	}
 
 	function drawEditsOnCanvas(): void {

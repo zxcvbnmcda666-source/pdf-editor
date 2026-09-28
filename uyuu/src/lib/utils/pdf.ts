@@ -6,7 +6,7 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 GlobalWorkerOptions.workerSrc = workerUrl;
 
 const PDF_LOAD_OPTIONS = {
-	cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.624/cmaps/',
+	cMapUrl: '/pdf-editor/cmaps/',
 	cMapPacked: true
 };
 

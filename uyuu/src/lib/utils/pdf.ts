@@ -19,3 +19,150 @@ export async function loadPdf(source: File | ArrayBuffer): Promise<PDFDocumentPr
   const doc = await getDocument({ data, ...PDF_LOAD_OPTIONS }).promise;
   return doc;
 }
+
+export async function renderPage(
+  page: PDFPageProxy,
+  canvas: HTMLCanvasElement,
+  scale: number
+): Promise<RenderTask> {
+  const viewport = page.getViewport({ scale: scale * window.devicePixelRatio });
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  canvas.style.width = `${viewport.width / window.devicePixelRatio}px`;
+  canvas.style.height = `${viewport.height / window.devicePixelRatio}px`;
+
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('无法获取画布绘图上下文');
+
+  const renderTask = page.render({ canvas, viewport });
+  await renderTask.promise;
+  return renderTask;
+}
+
+export function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 B';
+
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const k = 1024;
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const size = bytes / Math.pow(k, i);
+
+  return `${size.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+export interface ParsedRanges {
+  valid: boolean;
+  ranges: number[][];
+  error: string;
+}
+
+export function parseRanges(input: string, totalPages: number): ParsedRanges {
+  const trimmed = input.trim();
+
+  if (!trimmed) {
+    return {
+      valid: false,
+      ranges: [],
+      error: '请至少输入一个页面范围'
+    };
+  }
+
+  const parts = trimmed.split(',').map((s) => s.trim());
+  const ranges: number[][] = [];
+  const seenPages = new Set<number>();
+
+  for (const part of parts) {
+    if (!part) continue;
+
+    const dashMatch = part.match(/^(\d+)\s*-\s*(\d+)$/);
+
+    if (dashMatch) {
+      const start = parseInt(dashMatch[1], 10);
+      const end = parseInt(dashMatch[2], 10);
+
+      if (
+        start < 1 ||
+        end < 1 ||
+        start > totalPages ||
+        end > totalPages
+      ) {
+        return {
+          valid: false,
+          ranges: [],
+          error: `页面超出范围：${part}`
+        };
+      }
+
+      if (start > end) {
+        return {
+          valid: false,
+          ranges: [],
+          error: `页面范围格式无效：${part}`
+        };
+      }
+
+      const pages: number[] = [];
+
+      for (let i = start; i <= end; i++) {
+        if (seenPages.has(i)) {
+          return {
+            valid: false,
+            ranges: [],
+            error: `页面重复：${i}`
+          };
+        }
+
+        seenPages.add(i);
+        pages.push(i);
+      }
+
+      ranges.push(pages);
+      continue;
+    }
+
+    const num = parseInt(part, 10);
+
+    if (isNaN(num) || num.toString() !== part) {
+      return {
+        valid: false,
+        ranges: [],
+        error: `格式无效：${part}`
+      };
+    }
+
+    if (num < 1 || num > totalPages) {
+      return {
+        valid: false,
+        ranges: [],
+        error: `页面超出范围：${num}`
+      };
+    }
+
+    if (seenPages.has(num)) {
+      return {
+        valid: false,
+        ranges: [],
+        error: `页面重复：${num}`
+      };
+    }
+
+    seenPages.add(num);
+    ranges.push([num]);
+  }
+
+  if (ranges.length === 0) {
+    return {
+      valid: false,
+      ranges: [],
+      error: '请至少输入一个页面范围'
+    };
+  }
+
+  return {
+    valid: true,
+    ranges,
+    error: ''
+  };
+}
+
+export type { PDFDocumentProxy, PDFPageProxy };
